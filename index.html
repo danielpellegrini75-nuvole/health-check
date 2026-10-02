@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Financial Health Check</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap">
+<style>
+body { margin: 0; }
+[hidden] { display: none !important; }
+img { max-width: 100%; }
+/* Layout: single narrow column. Sector tabs, five question cards, live score panel, then the reply email. */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --ink: #14211f;
+  --muted: #55645f;
+  --line: #d6dddb;
+  --accent: #0a5c5a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0efee;
+  --good: #1b7a45;
+  --good-soft: #e1f2e8;
+  --warn: #9a6200;
+  --warn-soft: #fbefd5;
+  --crit: #b3261e;
+  --crit-soft: #fbe4e1;
+  --font-display: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1716; --surface: #172221; --ink: #e6eeec; --muted: #9cadaa; --line: #2b3b39;
+    --accent: #4fc3bd; --accent-ink: #0b1514; --accent-soft: #1b3331;
+    --good: #5fd08c; --good-soft: #17301f; --warn: #f0b84a; --warn-soft: #34290f;
+    --crit: #ff8a80; --crit-soft: #3a1b18; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1716; --surface: #172221; --ink: #e6eeec; --muted: #9cadaa; --line: #2b3b39;
+  --accent: #4fc3bd; --accent-ink: #0b1514; --accent-soft: #1b3331;
+  --good: #5fd08c; --good-soft: #17301f; --warn: #f0b84a; --warn-soft: #34290f;
+  --crit: #ff8a80; --crit-soft: #3a1b18; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 720px; margin-inline: auto; padding-inline: 16px; padding-block: 32px 56px; display: flex; flex-direction: column; gap: 28px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0; }
+h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(28px, 6vw, 40px); line-height: 1.12; margin: 8px 0 12px; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 20px; margin: 0 0 4px; text-wrap: balance; }
+.lede { color: var(--muted); font-size: 16px; max-width: 62ch; margin: 0; }
+.step-label { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+
+/* sector picker */
+.sectors { display: flex; flex-wrap: wrap; gap: 8px; }
+.sectors label { cursor: pointer; }
+.sectors input { position: absolute; opacity: 0; pointer-events: none; }
+.sectors span { display: inline-block; padding: 9px 16px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-weight: 500; transition: background .15s, border-color .15s; }
+.sectors input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.sectors input:focus-visible + span, .opt input:focus-visible + .opt-body, .field input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.why { margin: 14px 0 0; padding: 14px 16px; background: var(--accent-soft); border-radius: 6px; color: var(--ink); }
+
+/* questions */
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 16px; margin: 0; min-width: 0; }
+.q legend { padding: 0; float: left; width: 100%; }
+.q-head { display: flex; gap: 12px; align-items: baseline; margin-bottom: 4px; }
+.q-metric { font-family: var(--font-mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.q-text { font-weight: 600; font-size: 16px; margin: 2px 0 14px; clear: both; padding-top: 6px; }
+.opts { display: flex; flex-direction: column; gap: 8px; clear: both; }
+.opt { display: block; cursor: pointer; }
+.opt input { position: absolute; opacity: 0; pointer-events: none; }
+.opt-body { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); transition: border-color .15s, background .15s; }
+.opt-dk .opt-body { border-style: dashed; }
+.opt:hover .opt-body { border-color: var(--accent); }
+.opt-key { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--muted); display: grid; place-items: center; font-family: var(--font-mono); font-size: 11px; color: var(--muted); margin-top: 1px; }
+.opt-txt { min-width: 0; overflow-wrap: anywhere; }
+.opt input:checked + .opt-body { border-color: var(--accent); background: var(--accent-soft); }
+.opt input:checked + .opt-body .opt-key { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+/* score */
+.score { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px 16px; display: flex; flex-direction: column; gap: 14px; }
+.score-row { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; }
+.score-num { font-family: var(--font-display); font-size: 56px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; }
+.score-num small { font-size: 24px; color: var(--muted); font-weight: 500; }
+.band { font-weight: 600; padding: 4px 12px; border-radius: 999px; font-size: 14px; }
+.band.pending { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
+.band.good { background: var(--good-soft); color: var(--good); }
+.band.warn { background: var(--warn-soft); color: var(--warn); }
+.band.crit { background: var(--crit-soft); color: var(--crit); }
+.meter { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.meter i { height: 8px; border-radius: 4px; background: var(--line); transition: background .2s; }
+.meter i.on { background: var(--accent); }
+.score-msg { margin: 0; color: var(--muted); }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.legend li { display: flex; gap: 12px; align-items: baseline; }
+.legend li span { flex: 1 1 0; min-width: 0; }
+.legend b { font-family: var(--font-mono); font-size: 13px; min-width: 64px; font-variant-numeric: tabular-nums; }
+.legend .good b { color: var(--good); } .legend .warn b { color: var(--warn); } .legend .crit b { color: var(--crit); }
+
+/* email */
+.mail { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field label { font-size: 13px; color: var(--muted); }
+.field input { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); min-width: 0; }
+.preview { margin: 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; font-family: var(--font-mono); font-size: 12.5px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; user-select: all; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { font: inherit; font-weight: 600; padding: 11px 18px; border-radius: 6px; border: 1px solid var(--accent); cursor: pointer; text-decoration: none; display: inline-block; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); }
+.btn.ghost { background: transparent; color: var(--accent); }
+.btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+.fallback, .thanks { margin-top: 14px; }
+.thanks { background: var(--accent-soft); border-radius: 8px; padding: 20px 16px; display: flex; flex-direction: column; gap: 10px; }
+.thanks h2 { font-size: 22px; margin: 0; }
+.thanks p { margin: 0; max-width: 62ch; }
+.thanks .sign { font-weight: 600; }
+.status { font-size: 13px; color: var(--muted); }
+.to { font-size: 14px; color: var(--muted); margin: 0; }
+.to code { font-family: var(--font-mono); color: var(--ink); user-select: all; overflow-wrap: anywhere; }
+footer { color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow">Financial Health Check</p>
+    <h1>Five questions that show how stable your business really is</h1>
+    <p class="lede">Pick your industry, answer from memory, and get a score out of 5 in about two minutes. Then submit your results to Daniele Pellegrini for a deeper conversation.</p>
+  </header>
+
+  <section aria-labelledby="s1">
+    <p class="step-label" id="s1">Step 1 · Your industry</p>
+    <div class="sectors" id="sectors" role="radiogroup" aria-labelledby="s1"></div>
+    <p class="why" id="why"></p>
+  </section>
+
+  <section aria-labelledby="s2">
+    <p class="step-label" id="s2">Step 2 · How should Daniele reach you?</p>
+    <div class="mail">
+      <div class="fields">
+        <div class="field"><label for="fCo">Company name</label><input id="fCo" type="text" autocomplete="organization" placeholder="Your company"></div>
+        <div class="field"><label for="fEm">Email (required)</label><input id="fEm" type="email" required autocomplete="email" inputmode="email" placeholder="you@company.com"></div>
+        <div class="field"><label for="fPh">Phone (optional)</label><input id="fPh" type="tel" autocomplete="tel" inputmode="tel" placeholder="04xx xxx xxx"></div>
+      </div>
+      <p class="to">Daniele uses your email to send back a follow-up on your results. Company and phone are optional.</p>
+    </div>
+  </section>
+
+  <section aria-labelledby="s3" style="display:flex;flex-direction:column;gap:14px">
+    <p class="step-label" id="s3">Step 3 · Pick the answer closest to your business today. "I don't know" scores 0</p>
+    <div id="questions" style="display:flex;flex-direction:column;gap:14px"></div>
+  </section>
+
+  <section aria-labelledby="s4">
+    <p class="step-label" id="s4">Step 4 · Your score and submit</p>
+    <div class="score" aria-live="polite">
+      <div class="score-row">
+        <div class="score-num"><span id="scoreNum">–</span><small> / 5</small></div>
+        <span class="band pending" id="band">Answer all 5 to see your result</span>
+      </div>
+      <div class="meter" id="meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <p class="score-msg" id="scoreMsg"></p>
+      <ul class="legend">
+        <li class="good"><b>5 / 5</b><span>Market Leader. Your fundamentals are strong. The work now is protecting them as you grow.</span></li>
+        <li class="warn"><b>3 – 4 / 5</b><span>Hidden Risks. The business works today, but one or two gaps can hurt cash or margin quickly.</span></li>
+        <li class="crit"><b>0 – 2 / 5</b><span>Urgent Intervention Required. Several core metrics need attention before they limit your options.</span></li>
+      </ul>
+      <div class="actions">
+        <button class="btn primary" id="submitBtn" type="button" aria-disabled="true">Submit my results</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+    </div>
+    <div class="thanks" id="thanks" hidden tabindex="-1">
+      <h2>Nice work. Appreciate you doing this.</h2>
+      <p>Most founders never look at these numbers. You just did, and that's the hard part done.</p>
+      <p>Your results just landed in my inbox. I'll go through your answers, find the one or two things that would move the needle most in your business, and get back to you with some straight-up ideas. No pitch, no pressure. Just a real conversation.</p>
+      <p class="sign">Talk soon,<br>Daniele</p>
+    </div>
+    <div class="mail fallback" id="fallback" hidden>
+      <div>
+        <h2>Send your results by email instead</h2>
+        <p class="to">Press "Open in my email app" to start a message with these results, or copy the text and paste it into an email to <code id="toAddr">danielpellegrini75@gmail.com</code>.</p>
+      </div>
+      <pre class="preview" id="preview" tabindex="0" aria-label="Email text"></pre>
+      <div class="actions">
+        <a class="btn primary" id="mailBtn" href="#" target="_blank" rel="noopener">Open in my email app</a>
+        <button class="btn ghost" id="copyBtn" type="button">Copy email text</button>
+        <span class="status" id="copyStatus" role="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>Prepared by Daniele Pellegrini · Senior finance advisor · Nothing is sent until you press Submit. Your answers go straight to Daniele.</footer>
+</main>
+
+<script>
+(function () {
+  var TO = "danielpellegrini75@gmail.com";
+  // Paste your free Web3Forms access key here (web3forms.com > "Create your Access Key").
+  var ACCESS_KEY = "048df711-d6aa-49f5-980c-2df389bbabb4";
+  // s:1 marks the Strong answer (1 point). Its position varies by question.
+  var DATA = {
+    Construction: {
+      why: "Builders rarely fail from a lack of work. They fail when cash lands after the bills, when margin fades unseen on live jobs, or when a subcontractor problem lands on the head contractor.",
+      qs: [
+        { m: "Cash flow predictability", t: "How far ahead can you forecast your cash with confidence?", o: [
+          { x: "A few weeks at best. We react as it comes", s: 0 },
+          { x: "Monthly, and we are regularly surprised by what lands", s: 0 },
+          { x: "About 13 weeks, updated every week", s: 1 } ] },
+        { m: "Work in progress", t: "How do you track work in progress against what you have billed?", o: [
+          { x: "Bank balance and gut feel", s: 0 },
+          { x: "We track costs per job but not how they compare to claims", s: 0 },
+          { x: "Job by job schedule showing over and under claims, checked monthly", s: 1 } ] },
+        { m: "Pipeline margin", t: "What margin are you pricing into the jobs you are tendering now?", o: [
+          { x: "We only learn the real margin once a job is finished", s: 0 },
+          { x: "We have a target, but jobs often finish below it", s: 0 },
+          { x: "At or above our target, and we track margin fade on every live job", s: 1 } ] },
+        { m: "Debtor days", t: "On average, how long do clients take to pay your claims?", o: [
+          { x: "Over 60 days, or retentions and disputes are piling up", s: 0 },
+          { x: "45 to 60 days, with some chasing", s: 0 },
+          { x: "Within 30 days, and overdue claims are chased on a set routine", s: 1 } ] },
+        { m: "Subcontractor exposure", t: "How exposed are you to subcontractors?", o: [
+          { x: "We lean heavily on one or two subs and rarely check their paperwork", s: 0 },
+          { x: "We sometimes pay subbies before we are paid, and a few carry a lot of our work", s: 0 },
+          { x: "We pay when we are paid, check insurance and statutory declarations, and no sub is over 20% of cost", s: 1 } ] }
+      ] },
+    "Property (Real Estate/Development)": {
+      why: "Property is a leverage game. A small move in valuations, rates or settlement timing can turn a profitable asset into a covenant problem, so lenders watch these five numbers closely.",
+      qs: [
+        { m: "Loan-to-value (LVR)", t: "Where does your debt sit against the value of your property or project?", o: [
+          { x: "Above 70%, or close to a covenant limit", s: 0 },
+          { x: "Between 60% and 70%", s: 0 },
+          { x: "Below 60%, with clear headroom to every covenant", s: 1 } ] },
+        { m: "Interest cover", t: "How comfortably does income cover your interest bill?", o: [
+          { x: "There is a shortfall that I top up from other income", s: 0 },
+          { x: "It covers today's rates, but a rise would be tight", s: 0 },
+          { x: "Income covers interest at least twice, even if rates rise 2%", s: 1 } ] },
+        { m: "Vacancy and pre-sales", t: "How are vacancy or pre-sales tracking?", o: [
+          { x: "Vacancy is over 8%, or pre-sales are behind what the lender needs", s: 0 },
+          { x: "Vacancy is 3% to 8%, or pre-sales only just meet the requirement", s: 0 },
+          { x: "Vacancy is under 3%, or pre-sales have cleared the lender's hurdle with a buffer", s: 1 } ] },
+        { m: "Settlement risk", t: "How secure are your upcoming settlements?", o: [
+          { x: "I need these settlements to repay debt and have no plan B", s: 0 },
+          { x: "Finance is indicative only, or valuation risk is unchecked", s: 0 },
+          { x: "Buyers' finance is approved and I have a plan if one falls over", s: 1 } ] },
+        { m: "Cash reserves", t: "How long could you cover costs and interest with no new income?", o: [
+          { x: "Under 1 month", s: 0 },
+          { x: "Between 1 and 6 months", s: 0 },
+          { x: "6 months or more", s: 1 } ] }
+      ] },
+    SaaS: {
+      why: "Software growth is cheap to buy and expensive to keep. Investors and acquirers look past headline ARR to retention, payback, efficiency, runway and margin, because those five show whether growth is durable.",
+      qs: [
+        { m: "Net revenue retention", t: "Do your existing customers spend more or less with you over a year?", o: [
+          { x: "Below 90%", s: 0 },
+          { x: "Between 90% and 100%", s: 0 },
+          { x: "Above 100%. Existing customers grow faster than we lose them", s: 1 } ] },
+        { m: "LTV : CAC", t: "How does a customer's lifetime value compare with what it cost to win them?", o: [
+          { x: "Below 1 time", s: 0 },
+          { x: "Between 1 and 3 times", s: 0 },
+          { x: "3 times or more, and we earn back acquisition cost within 12 months", s: 1 } ] },
+        { m: "Growth efficiency", t: "For each $1 of sales and marketing spend, how much new annual recurring revenue do you add?", o: [
+          { x: "Under $0.40", s: 0 },
+          { x: "$0.40 to $0.75", s: 0 },
+          { x: "$0.75 or more", s: 1 } ] },
+        { m: "Burn and runway", t: "How long can you operate at the current burn rate?", o: [
+          { x: "Under 9 months", s: 0 },
+          { x: "9 to 18 months", s: 0 },
+          { x: "18 months or more, or we are already profitable", s: 1 } ] },
+        { m: "Gross margin", t: "What share of revenue is left after hosting, support and delivery costs?", o: [
+          { x: "Under 60%", s: 0 },
+          { x: "60% to 75%", s: 0 },
+          { x: "75% or more", s: 1 } ] }
+      ] },
+    "Retail & E-Commerce": {
+      why: "Retail margins are thin, so small leaks compound, in stores and online. Stock that sits too long, occupancy and fulfilment costs that outgrow sales, and slipping conversion are the usual reasons a busy business still runs short of cash.",
+      qs: [
+        { m: "Return on inventory (GMROI)", t: "For every $1 of stock you hold at cost, how much gross margin does it earn in a year?", o: [
+          { x: "Under $1.50", s: 0 },
+          { x: "$1.50 to $3.00", s: 0 },
+          { x: "$3.00 or more", s: 1 } ] },
+        { m: "Days of stock", t: "How long does stock typically sit before it sells?", o: [
+          { x: "Over 180 days, and we regularly mark down aged stock", s: 0 },
+          { x: "90 to 180 days", s: 0 },
+          { x: "Under 90 days", s: 1 } ] },
+        { m: "Traffic and conversion", t: "How are store foot traffic or website visits, and the share of visitors who buy, trending?", o: [
+          { x: "Traffic is falling and we are not sure why", s: 0 },
+          { x: "We track sales but not traffic or conversion", s: 0 },
+          { x: "We track both, and they are stable or growing", s: 1 } ] },
+        { m: "Occupancy and fulfilment cost", t: "What share of sales goes on rent plus shipping and fulfilment?", o: [
+          { x: "Over 25%", s: 0 },
+          { x: "15% to 25%", s: 0 },
+          { x: "Under 15%", s: 1 } ] },
+        { m: "Operating margin", t: "After rent, wages and running costs, how much profit is left from sales?", o: [
+          { x: "Under 3%, or some stores or channels lose money", s: 0 },
+          { x: "3% to 10%", s: 0 },
+          { x: "10% or more", s: 1 } ] }
+      ] },
+    FMCG: {
+      why: "In FMCG you win shelf space on promotions and lose it on stock-outs, all while input costs move. Cash is tied up between paying suppliers and being paid by retailers, so the cash cycle decides who survives a bad quarter.",
+      qs: [
+        { m: "Inventory turnover", t: "How many times a year does your stock turn over?", o: [
+          { x: "Fewer than 4 times, or we write off expired stock", s: 0 },
+          { x: "4 to 8 times", s: 0 },
+          { x: "8 times or more, with almost no expiry write-offs", s: 1 } ] },
+        { m: "Trade spend efficiency", t: "How well do you know what each promotion earns you?", o: [
+          { x: "Retailers set the promotions and I cannot say what they return", s: 0 },
+          { x: "We know total trade spend but not the return per promotion", s: 0 },
+          { x: "We measure the return on each promotion and drop those that do not pay back", s: 1 } ] },
+        { m: "Margin vs inflation", t: "How have you held gross margin as costs have risen?", o: [
+          { x: "Margin has dropped noticeably. We absorb most cost increases", s: 0 },
+          { x: "Margin has slipped slightly", s: 0 },
+          { x: "We pass on cost changes within a quarter and margin is holding", s: 1 } ] },
+        { m: "Fill rate", t: "What share of orders ship complete and on time?", o: [
+          { x: "Below 85%, or we are fined for misses", s: 0 },
+          { x: "85% to 95%", s: 0 },
+          { x: "95% or more", s: 1 } ] },
+        { m: "Cash conversion cycle", t: "How long between paying suppliers and collecting from retailers?", o: [
+          { x: "Over 100 days, and an overdraft funds the gap", s: 0 },
+          { x: "60 to 100 days", s: 0 },
+          { x: "Under 60 days", s: 1 } ] }
+      ] },
+    "Professional Services": {
+      why: "Covers recruitment, legal and similar fee-earning firms. Your product is your people's time, so profit depends on how hard that time works, how fast it turns into cash, and how many clients you rely on.",
+      qs: [
+        { m: "Fee earner productivity", t: "How well are your fee earners covering their cost?", o: [
+          { x: "Fewer than half of our fee earners cover their own cost", s: 0 },
+          { x: "Most cover their cost, but a few carry the rest", s: 0 },
+          { x: "Every fee earner brings in at least 3 times their salary cost in fees", s: 1 } ] },
+        { m: "Lock-up days", t: "How long does it take from doing the work to having the cash?", o: [
+          { x: "Over 120 days", s: 0 },
+          { x: "60 to 120 days", s: 0 },
+          { x: "Under 60 days", s: 1 } ] },
+        { m: "Client concentration", t: "How much of your revenue comes from your top three clients?", o: [
+          { x: "Over 50%", s: 0 },
+          { x: "30% to 50%", s: 0 },
+          { x: "Under 30%", s: 1 } ] },
+        { m: "Contracted revenue", t: "How much of next quarter's revenue is already retained, contracted or instructed?", o: [
+          { x: "Under 20%. We start most months close to zero", s: 0 },
+          { x: "20% to 50%", s: 0 },
+          { x: "Over 50%", s: 1 } ] },
+        { m: "Staff cost ratio", t: "What share of revenue goes on salaries, with partners paid at market rate?", o: [
+          { x: "Over 70%", s: 0 },
+          { x: "60% to 70%", s: 0 },
+          { x: "Under 60%", s: 1 } ] }
+      ] },
+    "Media & Agencies": {
+      why: "Covers advertising, marketing and digital agencies. Agencies are won and lost on how steady the retainers are, how dependent you are on one client, and whether you fund client media spend out of your own pocket.",
+      qs: [
+        { m: "Retainer revenue", t: "What share of your revenue is monthly retainers rather than one-off projects?", o: [
+          { x: "Under 30%", s: 0 },
+          { x: "30% to 60%", s: 0 },
+          { x: "Over 60%", s: 1 } ] },
+        { m: "Client concentration", t: "How much of your revenue comes from your largest client?", o: [
+          { x: "Over 30%", s: 0 },
+          { x: "15% to 30%", s: 0 },
+          { x: "Under 15%", s: 1 } ] },
+        { m: "Team utilisation", t: "How much of your team's paid time is billed to clients?", o: [
+          { x: "Under 60%", s: 0 },
+          { x: "60% to 75%", s: 0 },
+          { x: "75% or more", s: 1 } ] },
+        { m: "Media and supplier exposure", t: "Do you pay media and suppliers before your clients pay you?", o: [
+          { x: "Yes, regularly, and a client failing to pay would hurt badly", s: 0 },
+          { x: "Sometimes, on larger campaigns", s: 0 },
+          { x: "No. We are paid first, or pay suppliers only when the client pays", s: 1 } ] },
+        { m: "Client profitability", t: "Do you know what each client earns you after team costs?", o: [
+          { x: "No, we only see overall profit", s: 0 },
+          { x: "We estimate it every quarter or at year end", s: 0 },
+          { x: "Yes, tracked monthly for every client, with scope creep flagged", s: 1 } ] }
+      ] },
+    "Fitness": {
+      why: "Covers gyms, studios and personal training businesses. Memberships are recurring, but the fixed costs of rent, equipment finance and staff are too, so churn, capacity and cash buffers decide whether a quiet month is survivable.",
+      qs: [
+        { m: "Member churn", t: "What share of members cancel each month?", o: [
+          { x: "Over 6%", s: 0 },
+          { x: "3% to 6%", s: 0 },
+          { x: "Under 3%", s: 1 } ] },
+        { m: "Recurring revenue", t: "How much of your revenue is recurring memberships on direct debit?", o: [
+          { x: "Under 50%", s: 0 },
+          { x: "50% to 75%", s: 0 },
+          { x: "Over 75%", s: 1 } ] },
+        { m: "Occupancy cost", t: "What share of revenue goes on rent and outgoings?", o: [
+          { x: "Over 25%", s: 0 },
+          { x: "15% to 25%", s: 0 },
+          { x: "Under 15%", s: 1 } ] },
+        { m: "Capacity use", t: "How full are your classes or training slots on average?", o: [
+          { x: "Under 50%", s: 0 },
+          { x: "50% to 75%", s: 0 },
+          { x: "Over 75%", s: 1 } ] },
+        { m: "Cash buffer", t: "How many months of fixed costs could you cover with no new sales?", o: [
+          { x: "Under 1 month", s: 0 },
+          { x: "1 to 3 months", s: 0 },
+          { x: "3 months or more", s: 1 } ] }
+      ] },
+    "Software / IT Services": {
+      why: "Covers software development shops, managed service providers and IT consultancies. Profit depends on keeping engineers billable, pricing fixed-price work properly, and having recurring contracts to smooth the gaps between projects.",
+      qs: [
+        { m: "Recurring contracts", t: "What share of revenue is managed services, support or other recurring contracts?", o: [
+          { x: "Under 20%", s: 0 },
+          { x: "20% to 50%", s: 0 },
+          { x: "Over 50%", s: 1 } ] },
+        { m: "Billable utilisation", t: "How much of your delivery team's paid time is billed to clients?", o: [
+          { x: "Under 65%", s: 0 },
+          { x: "65% to 80%", s: 0 },
+          { x: "80% or more", s: 1 } ] },
+        { m: "Fixed-price projects", t: "How do your fixed-price projects finish against the quote?", o: [
+          { x: "Regularly over budget, and we absorb the extra effort", s: 0 },
+          { x: "Usually close, with the occasional overrun", s: 0 },
+          { x: "On or ahead of quote, and change requests are billed", s: 1 } ] },
+        { m: "Debtor days", t: "On average, how long do clients take to pay your invoices?", o: [
+          { x: "Over 60 days", s: 0 },
+          { x: "40 to 60 days", s: 0 },
+          { x: "Under 40 days", s: 1 } ] },
+        { m: "Client concentration", t: "How much of your revenue comes from your largest client?", o: [
+          { x: "Over 40%", s: 0 },
+          { x: "20% to 40%", s: 0 },
+          { x: "Under 20%", s: 1 } ] }
+      ] },
+    "Education": {
+      why: "Covers private colleges, training providers, tutoring and schools. Revenue follows enrolments, so the early warning signs are the pipeline, when fees arrive, how many students stay, and how much rides on a single funder or approval.",
+      qs: [
+        { m: "Enrolment pipeline", t: "How do next term's enrolments compare with the same point last year?", o: [
+          { x: "Down by more than 10%", s: 0 },
+          { x: "Down by up to 10%", s: 0 },
+          { x: "At or above last year", s: 1 } ] },
+        { m: "Fee collection", t: "When do you collect fees?", o: [
+          { x: "After the term or course, often in arrears that we chase", s: 0 },
+          { x: "In instalments during the term", s: 0 },
+          { x: "Upfront, before the term starts", s: 1 } ] },
+        { m: "Student retention", t: "What share of students complete their course or return the next term?", o: [
+          { x: "Under 70%", s: 0 },
+          { x: "70% to 85%", s: 0 },
+          { x: "Over 85%", s: 1 } ] },
+        { m: "Staff cost ratio", t: "What share of revenue goes on teaching and delivery staff?", o: [
+          { x: "Over 65%", s: 0 },
+          { x: "50% to 65%", s: 0 },
+          { x: "Under 50%", s: 1 } ] },
+        { m: "Funding concentration", t: "How much of your revenue depends on one funding source, partner or approval?", o: [
+          { x: "Over 60%", s: 0 },
+          { x: "30% to 60%", s: 0 },
+          { x: "Under 30%, and approvals are up to date", s: 1 } ] }
+      ] }
+  };
+  var LABEL = {
+    "Property (Real Estate/Development)": "Property"
+  };
+  var SECTORS = Object.keys(DATA);
+  var state = { sector: SECTORS[0], ans: [null, null, null, null, null] };
+  var L = ["A", "B", "C", "D"];
+  SECTORS.forEach(function (k) { DATA[k].qs.forEach(function (q) { q.o.push({ x: "I don't know", s: 0 }); }); });
+  function lab(k) { return LABEL[k] || k; }
+  var $ = function (id) { return document.getElementById(id); };
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function renderSectors() {
+    $("sectors").innerHTML = SECTORS.map(function (s, i) {
+      return '<label><input type="radio" name="sector" id="sec' + i + '" value="' + esc(s) + '"' + (s === state.sector ? " checked" : "") + '><span>' + esc(lab(s)) + "</span></label>";
+    }).join("");
+  }
+
+  function renderQuestions() {
+    var d = DATA[state.sector];
+    $("why").textContent = d.why;
+    $("questions").innerHTML = d.qs.map(function (q, i) {
+      var opts = q.o.map(function (o, j) {
+        return '<label class="opt' + (j === 3 ? " opt-dk" : "") + '"><input type="radio" name="q' + i + '" id="q' + i + 'o' + j + '" value="' + j + '"' + (state.ans[i] === j ? " checked" : "") + '><span class="opt-body"><span class="opt-key">' + L[j] + '</span><span class="opt-txt">' + esc(o.x) + "</span></span></label>";
+      }).join("");
+      return '<fieldset class="q"><legend><span class="q-head"><span class="q-metric">Q' + (i + 1) + " · " + esc(q.m) + '</span></span></legend><p class="q-text">' + esc(q.t) + '</p><div class="opts">' + opts + "</div></fieldset>";
+    }).join("");
+  }
+
+  function score() {
+    var d = DATA[state.sector], n = 0, done = 0;
+    state.ans.forEach(function (a, i) { if (a !== null) { done++; n += d.qs[i].o[a].s; } });
+    return { n: n, done: done };
+  }
+
+  function band(n) {
+    if (n === 5) return { c: "good", t: "Market Leader", m: "Strong on every metric that matters in your industry. A review can still find ways to protect and use that position." };
+    if (n >= 3) return { c: "warn", t: "Hidden Risks", m: "Solid in places, exposed in others. The gaps you flagged are the ones that tend to surface when conditions tighten." };
+    return { c: "crit", t: "Urgent Intervention Required", m: "Several core metrics are in the danger zone. Acting early keeps more options open, so a short conversation is worth having soon." };
+  }
+
+  function emailText() {
+    var d = DATA[state.sector], sc = score();
+    var em = $("fEm").value.trim(), ph = $("fPh").value.trim();
+    var lines = ["Hi Daniele,", "", "Here are my answers to your Financial Health Check.", ""];
+    lines.push("Company: " + ($("fCo").value.trim() || "(not given)"), "Email: " + em, "Phone: " + (ph || "(not given)"), "Industry: " + lab(state.sector), "");
+    d.qs.forEach(function (q, i) {
+      var a = state.ans[i];
+      lines.push("Q" + (i + 1) + " " + q.m + ": " + (a === null ? "(not answered)" : L[a] + ") " + q.o[a].x));
+    });
+    lines.push("", "My score: " + (sc.done === 5 ? sc.n + " / 5 (" + band(sc.n).t + ")" : "incomplete"), "", "I would like to talk through the results.");
+    return lines.join("\n");
+  }
+  function subject() {
+    var sc = score();
+    return "Financial Health Check - " + lab(state.sector) + ($("fCo").value.trim() ? " - " + $("fCo").value.trim() : "") + (sc.done === 5 ? " - " + sc.n + "/5" : "");
+  }
+  function fillFallback() {
+    var txt = emailText();
+    $("preview").textContent = "To: " + TO + "\nSubject: " + subject() + "\n\n" + txt;
+    $("mailBtn").href = "mailto:" + TO + "?subject=" + encodeURIComponent(subject()) + "&body=" + encodeURIComponent(txt).replace(/%0A/g, "%0D%0A");
+  }
+
+  var submitting = false, submitted = false;
+  function update() {
+    var sc = score(), b = $("band"), full = sc.done === 5;
+    $("scoreNum").textContent = full ? sc.n : "–";
+    var mt = $("meter").children;
+    for (var i = 0; i < 5; i++) mt[i].className = full && i < sc.n ? "on" : (!full && i < sc.done ? "on" : "");
+    if (full) { var bd = band(sc.n); b.className = "band " + bd.c; b.textContent = bd.t; $("scoreMsg").textContent = bd.m; }
+    else { b.className = "band pending"; b.textContent = sc.done + " of 5 answered"; $("scoreMsg").textContent = "Answer every question to see your score."; }
+    var emOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("fEm").value.trim());
+    $("submitBtn").setAttribute("aria-disabled", full && emOk && !submitting && !submitted ? "false" : "true");
+    if (!submitted && !submitting) $("status").textContent = !emOk ? "Enter your email address in Step 2 to enable Submit." : (full ? "" : "Answer all 5 questions to enable Submit.");
+    fillFallback();
+  }
+  function resetSubmit() { submitted = false; submitting = false; $("fallback").hidden = true; $("thanks").hidden = true; }
+
+  $("sectors").addEventListener("change", function (e) {
+    if (e.target.name !== "sector") return;
+    state.sector = e.target.value; state.ans = [null, null, null, null, null];
+    resetSubmit(); renderQuestions(); update();
+  });
+  $("questions").addEventListener("change", function (e) {
+    var m = /^q(\d)$/.exec(e.target.name || ""); if (!m) return;
+    state.ans[+m[1]] = +e.target.value; resetSubmit(); update();
+  });
+  ["fEm", "fPh", "fCo"].forEach(function (id) { $(id).addEventListener("input", function () { resetSubmit(); update(); }); });
+
+  $("submitBtn").addEventListener("click", function () {
+    if (this.getAttribute("aria-disabled") === "true" || score().done !== 5) return;
+    var showFallback = function (msg) {
+      submitting = false; update();
+      $("status").textContent = msg;
+      $("thanks").hidden = true; $("fallback").hidden = false;
+    };
+    if (/^PASTE/.test(ACCESS_KEY)) { showFallback("This form is not connected yet. Use the email option below."); return; }
+    submitting = true; update(); $("status").textContent = "Sending...";
+    var sc = score();
+    fetch("https://api.web3forms.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        access_key: ACCESS_KEY,
+        subject: subject(),
+        from_name: "Financial Health Check",
+        email: $("fEm").value.trim(),
+        company: $("fCo").value.trim(),
+        phone: $("fPh").value.trim(),
+        sector: lab(state.sector),
+        score: sc.n + " / 5 (" + band(sc.n).t + ")",
+        message: emailText()
+      })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+      if (!res || !res.success) throw new Error((res && res.message) || "rejected");
+      submitting = false; submitted = true; update();
+      $("status").textContent = "Sent. Daniele has your results.";
+      $("fallback").hidden = true; $("thanks").hidden = false;
+      $("thanks").scrollIntoView({ behavior: "smooth", block: "start" });
+    }).catch(function (err) {
+      console.log("Web3Forms error:", err);
+      showFallback("We could not send that automatically (" + ((err && err.message) || "network error") + "). Please use the email option below.");
+    });
+  });
+
+  $("copyBtn").addEventListener("click", function () {
+    var text = $("preview").textContent;
+    var ok = function () { $("copyStatus").textContent = "Copied. Paste it into a new email."; };
+    var fb = function () {
+      var r = document.createRange(); r.selectNodeContents($("preview"));
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      $("copyStatus").textContent = "Text selected. Press Ctrl+C (or Cmd+C) to copy.";
+    };
+    try { navigator.clipboard.writeText(text).then(ok, fb); } catch (err) { fb(); }
+  });
+
+  renderSectors(); renderQuestions(); update();
+})();
+</script>
+
+</body>
+</html>
